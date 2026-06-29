@@ -1,5 +1,7 @@
 # One Piece — Grand Line Showcase
 
+🔗 **Live site:** [one-piece-self-seven.vercel.app](https://one-piece-self-seven.vercel.app/)
+
 An interactive, single-file **One Piece** landing experience. Cursor-driven reveals, full-bleed cinematic sections, canvas particle effects, and a looping soundtrack — all in one `index.html`, no frameworks and no build step.
 
 What started as a single Gear 5 hover-reveal has grown into a full scrolling showcase: a hero awakening, a rivals gallery, two full-page crew sections, a cursor-shift gear stage, and background music.
@@ -8,7 +10,9 @@ What started as a single Gear 5 hover-reveal has grown into a full scrolling sho
 
 ## Demo
 
-Open `index.html` in any modern browser. Move your cursor around each section — almost everything reacts to the pointer. On touch devices, drag a finger. Background music starts on your first interaction.
+**▶ Live:** https://one-piece-self-seven.vercel.app/
+
+Or open `index.html` in any modern browser. Move your cursor around each section — almost everything reacts to the pointer. On touch devices, drag a finger. Background music starts on your first interaction.
 
 > Assets live in `images/`, `images/gears/`, and `audio/` — keep them alongside `index.html`.
 

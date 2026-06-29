@@ -815,6 +815,17 @@
   @keyframes eqBar { 0%,100% { height: 6px; } 50% { height: 20px; } }
   .audio-toggle.muted .bar { animation-play-state: paused; height: 7px; opacity: 0.5; }
   @media (max-width: 680px){ .audio-toggle { width: 42px; height: 42px; top: 14px; right: 14px; } }
+
+  /* === CONQUEROR'S HAKI CLICK SHOCKWAVE === */
+  #haki-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99998;
+    pointer-events: none;
+    display: block;
+  }
 </style>
 </head>
 <body>
@@ -822,6 +833,7 @@
 <button class="audio-toggle muted" id="audio-toggle" title="Play music" aria-label="Toggle background music">
   <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
 </button>
+<canvas id="haki-canvas"></canvas>
 
 <div class="hero" id="hero">
   <canvas class="hero-canvas" id="cv"></canvas>
@@ -1656,6 +1668,114 @@
     if (audio.paused || audio.muted) { goAudible(); }
     else { audio.pause(); setUI(false); }
   });
+})();
+</script>
+
+<script>
+/* === CONQUEROR'S HAKI CLICK SHOCKWAVE === */
+(function(){
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cv = document.getElementById('haki-canvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let W = 0, H = 0;
+  function resize(){ W = window.innerWidth; H = window.innerHeight; cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const DURATION = 740;       // ms per shockwave
+  const waves = [];
+  let running = false;
+
+  function makeBolts(n){
+    const bolts = [];
+    for (let i = 0; i < n; i++){
+      const ang = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+      const segs = 5 + (Math.random() * 3 | 0);
+      const jag = [];
+      for (let s = 0; s <= segs; s++) jag.push(Math.random() - 0.5);
+      bolts.push({ ang, jag, segs });
+    }
+    return bolts;
+  }
+
+  function spawn(x, y){
+    waves.push({ x, y, t0: performance.now(), bolts: makeBolts(12), maxR: Math.max(W, H) * 0.62 });
+    if (!running){ running = true; requestAnimationFrame(frame); }
+  }
+
+  function frame(now){
+    ctx.clearRect(0, 0, W, H);
+    for (let i = waves.length - 1; i >= 0; i--){
+      const w = waves[i];
+      const p = (now - w.t0) / DURATION;
+      if (p >= 1){ waves.splice(i, 1); continue; }
+      drawWave(w, p, now);
+    }
+    if (waves.length){ requestAnimationFrame(frame); }
+    else { ctx.clearRect(0, 0, W, H); running = false; }
+  }
+
+  function drawWave(w, p, now){
+    const ease = 1 - Math.pow(1 - p, 3);
+    const r = ease * w.maxR;
+    const fade = 1 - p;
+
+    // brief full-screen darken pulse (Haki pressure)
+    if (p < 0.20){ ctx.fillStyle = 'rgba(18,0,28,' + (0.22 * (1 - p / 0.20)) + ')'; ctx.fillRect(0, 0, W, H); }
+
+    // dark dome ripple
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, r, 0, Math.PI * 2);
+    ctx.lineWidth = 28 * (1 - p) + 2;
+    ctx.strokeStyle = 'rgba(38,4,58,' + (0.5 * fade) + ')';
+    ctx.stroke();
+
+    // bright inner ring
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, r * 0.9, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(196,128,255,' + (0.75 * fade) + ')';
+    ctx.shadowColor = 'rgba(170,80,255,0.9)'; ctx.shadowBlur = 18;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // radiating black lightning bolts
+    const blen = r * 1.04;
+    for (const b of w.bolts){
+      ctx.beginPath();
+      ctx.moveTo(w.x, w.y);
+      const flick = 0.85 + Math.sin(now * 0.05 + b.ang) * 0.15;
+      for (let s = 1; s <= b.segs; s++){
+        const t = s / b.segs;
+        const rad = blen * t;
+        const perp = b.jag[s] * rad * 0.18 * flick;
+        const px = w.x + Math.cos(b.ang) * rad - Math.sin(b.ang) * perp;
+        const py = w.y + Math.sin(b.ang) * rad + Math.cos(b.ang) * perp;
+        ctx.lineTo(px, py);
+      }
+      ctx.lineWidth = 2.6 * fade + 0.5;
+      ctx.strokeStyle = 'rgba(16,0,26,' + (0.92 * fade) + ')';
+      ctx.shadowColor = 'rgba(150,60,255,0.9)'; ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // hot core flash (fast)
+    if (p < 0.32){
+      const fp = 1 - (p / 0.32);
+      const g = ctx.createRadialGradient(w.x, w.y, 0, w.x, w.y, 150);
+      g.addColorStop(0, 'rgba(255,255,255,' + (0.85 * fp) + ')');
+      g.addColorStop(0.4, 'rgba(196,128,255,' + (0.5 * fp) + ')');
+      g.addColorStop(1, 'rgba(196,128,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(w.x, w.y, 150, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Fire on every click / tap anywhere (visual only — clicks still reach the page)
+  window.addEventListener('pointerdown', function(e){ spawn(e.clientX, e.clientY); });
 })();
 </script>
 </body>

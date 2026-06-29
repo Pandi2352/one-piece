@@ -808,12 +808,15 @@
   .audio-toggle .bar {
     width: 3px; height: 16px; border-radius: 2px; background: #F4C430;
     animation: eqBar 0.9s ease-in-out infinite;
+    transition: height 0.07s linear;
   }
   .audio-toggle .bar:nth-child(2){ animation-delay: 0.22s; }
   .audio-toggle .bar:nth-child(3){ animation-delay: 0.44s; }
   .audio-toggle .bar:nth-child(4){ animation-delay: 0.12s; }
   @keyframes eqBar { 0%,100% { height: 6px; } 50% { height: 20px; } }
   .audio-toggle.muted .bar { animation-play-state: paused; height: 7px; opacity: 0.5; }
+  /* When the real-audio analyser is live, JS sets bar heights — disable the CSS loop */
+  .audio-toggle.reactive .bar { animation: none; }
   @media (max-width: 680px){ .audio-toggle { width: 42px; height: 42px; top: 14px; right: 14px; } }
 
   /* === CONQUEROR'S HAKI CLICK SHOCKWAVE === */
@@ -1617,11 +1620,12 @@
 </script>
 
 <script>
-/* === LOOPING BACKGROUND MUSIC (auto-start, audible ASAP) === */
+/* === LOOPING BACKGROUND MUSIC + AUDIO-REACTIVE EQUALIZER === */
 (function(){
   const audio = document.getElementById('bg-audio');
   const toggle = document.getElementById('audio-toggle');
   if (!audio || !toggle) return;
+  const bars = toggle.querySelectorAll('.bar');
   audio.volume = 0.45;
   let audible = false;
 
@@ -1630,13 +1634,11 @@
     toggle.title = on ? 'Mute music' : 'Play music';
   }
 
-  // 1) Start the track right away, MUTED — browsers always allow this,
-  //    so the music timeline is already running the moment you enter.
+  // Start muted right away (always allowed) so the track is already running.
   audio.muted = true;
   audio.play().catch(()=>{});
 
-  // 2) Try to become audible. Works instantly if the browser trusts the site;
-  //    otherwise the first gesture (below) flips it on seamlessly.
+  // Become audible — instant if the browser trusts the site, else on first gesture.
   function goAudible(){
     audio.muted = false;
     audio.play().then(() => { audible = true; setUI(true); })
@@ -1644,10 +1646,53 @@
   }
   goAudible();
 
-  // 3) Fallback: unmute on the user's first interaction anywhere.
+  // --- Web Audio analyser: drive the equalizer bars from the real song ---
+  let actx = null, analyser = null, freq = null, reactive = false;
+  function ensureAudio(){
+    if (!actx){
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        actx = new AC();
+        const src = actx.createMediaElementSource(audio);
+        analyser = actx.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.78;
+        freq = new Uint8Array(analyser.frequencyBinCount);
+        src.connect(analyser);
+        analyser.connect(actx.destination);
+        reactive = true;
+        toggle.classList.add('reactive');
+        requestAnimationFrame(renderBars);
+      } catch (e) { /* analyser unavailable — CSS bars stay as fallback */ }
+    }
+    if (actx && actx.state === 'suspended') actx.resume();
+  }
+
+  function renderBars(){
+    if (analyser && !audio.paused && !audio.muted){
+      analyser.getByteFrequencyData(freq);
+      const n = freq.length, b = bars.length;
+      for (let i = 0; i < b; i++){
+        // map each bar to a slice of the lower-mid spectrum (where music energy lives)
+        const start = Math.floor((i / b) * n * 0.65);
+        const end = Math.max(start + 1, Math.floor(((i + 1) / b) * n * 0.65));
+        let sum = 0;
+        for (let j = start; j < end; j++) sum += freq[j];
+        const v = (sum / (end - start)) / 255;          // 0..1
+        bars[i].style.height = (5 + v * 23).toFixed(1) + 'px';
+      }
+    } else if (reactive){
+      for (let i = 0; i < bars.length; i++) bars[i].style.height = '6px';
+    }
+    requestAnimationFrame(renderBars);
+  }
+
+  // Unmute + wire up the analyser on the user's first interaction anywhere.
   function firstGesture(e){
     if (toggle.contains(e.target)) return;
     if (!audible) goAudible();
+    ensureAudio();
     if (audible) {
       window.removeEventListener('pointermove', firstGesture);
       window.removeEventListener('pointerdown', firstGesture);
@@ -1665,7 +1710,7 @@
   // Manual mute / play
   toggle.addEventListener('click', function(e){
     e.stopPropagation();
-    if (audio.paused || audio.muted) { goAudible(); }
+    if (audio.paused || audio.muted) { goAudible(); ensureAudio(); }
     else { audio.pause(); setUI(false); }
   });
 })();

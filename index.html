@@ -1809,7 +1809,7 @@
   // Become audible — instant if the browser trusts the site, else on first gesture.
   function goAudible(){
     audio.muted = false;
-    audio.play().then(() => { audible = true; setUI(true); })
+    audio.play().then(() => { audible = true; setUI(true); onAudible(); })
                 .catch(() => { audio.muted = true; audio.play().catch(()=>{}); setUI(false); });
   }
   goAudible();
@@ -1856,23 +1856,46 @@
     requestAnimationFrame(renderBars);
   }
 
-  // Unmute + wire up the analyser on the user's first interaction anywhere.
+  // A tiny one-time hint — browsers forbid audible sound before a real
+  // click/tap/keypress, so we invite the visitor to interact.
+  let hint = null;
+  function showHint(){
+    if (audible || hint) return;
+    hint = document.createElement('div');
+    hint.textContent = '🔊 Tap anywhere for sound';
+    hint.style.cssText = 'position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:99997;'
+      + 'font-family:"Bebas Neue",sans-serif;letter-spacing:.18em;font-size:14px;color:#fff;'
+      + 'background:rgba(10,16,30,.85);border:1px solid rgba(244,196,48,.6);padding:9px 18px;'
+      + 'border-radius:999px;pointer-events:none;box-shadow:0 0 18px rgba(244,196,48,.35);'
+      + 'transition:opacity .5s ease;opacity:0;';
+    document.body.appendChild(hint);
+    requestAnimationFrame(function(){ if (hint) hint.style.opacity = '1'; });
+  }
+  function hideHint(){
+    if (!hint) return;
+    const h = hint; hint = null;
+    h.style.opacity = '0';
+    setTimeout(function(){ h.remove(); }, 600);
+  }
+  setTimeout(showHint, 900);
+
+  // Called once audio is actually audible: clean up listeners + hint.
+  function onAudible(){
+    hideHint();
+    window.removeEventListener('pointerdown', firstGesture);
+    window.removeEventListener('keydown', firstGesture);
+    window.removeEventListener('touchstart', firstGesture);
+  }
+
+  // Start audible audio on the first REAL activation gesture.
+  // (mousemove / scroll are NOT activation gestures — they can't start audio.)
   function firstGesture(e){
     if (toggle.contains(e.target)) return;
-    if (!audible) goAudible();
+    goAudible();
     ensureAudio();
-    if (audible) {
-      window.removeEventListener('pointermove', firstGesture);
-      window.removeEventListener('pointerdown', firstGesture);
-      window.removeEventListener('keydown', firstGesture);
-      window.removeEventListener('scroll', firstGesture);
-      window.removeEventListener('touchstart', firstGesture);
-    }
   }
-  window.addEventListener('pointermove', firstGesture);
   window.addEventListener('pointerdown', firstGesture);
   window.addEventListener('keydown', firstGesture);
-  window.addEventListener('scroll', firstGesture, { passive: true });
   window.addEventListener('touchstart', firstGesture, { passive: true });
 
   // Manual mute / play
